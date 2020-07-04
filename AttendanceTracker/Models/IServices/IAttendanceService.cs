@@ -5,7 +5,7 @@ namespace AttendanceTracker.Models.IServices
 {
     public interface IAttendanceService
     {
-        IEnumerable<AttendanceResponse> GetAttendance(string attendanceDate = null);
+        IEnumerable<AttendanceResponse> GetAttendance(string attendanceDate = null, int classRoomId = 0);
 
         AttendanceResponse CreateAttendance(string icNumber);
 

@@ -30,6 +30,7 @@ namespace AttendanceTracker
             services.AddDbContext<AttendanceTracker_DevContext>(opts => opts.UseMySql(Configuration.GetConnectionString("AttendanceTrackerDB")));
             services.AddTransient(typeof(IDataRepository<>), typeof(DataRepository<>));
             services.AddScoped<IAttendanceService, AttendanceService>();
+            services.AddScoped<IClassroomService, ClassroomService>();
 
             services.Configure<RequestLocalizationOptions>(
                 options =>
@@ -66,7 +67,7 @@ namespace AttendanceTracker
             var service = serviceProvider.GetService<IAttendanceService>();
 
             // service.ClassroomSync();
-            service.GenerateQRCode();
+            // service.GenerateQRCode();
             // service.PraSync();
         }
         

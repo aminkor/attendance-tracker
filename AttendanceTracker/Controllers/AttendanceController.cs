@@ -1,4 +1,5 @@
-﻿using AttendanceTracker.Models;
+﻿using System;
+using AttendanceTracker.Models;
 using AttendanceTracker.Models.IServices;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,9 +18,9 @@ namespace AttendanceTracker.Controllers
 
         // GET
         [HttpGet]
-        public IActionResult Index()
+        public IActionResult Index([FromQuery] int classRoomId, [FromQuery] string attendanceDate)
         {
-            var attendances = _attendanceService.GetAttendance();
+            var attendances = _attendanceService.GetAttendance(attendanceDate, classRoomId);
             return Ok(attendances);
         }
         

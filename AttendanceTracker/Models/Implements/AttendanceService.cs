@@ -32,7 +32,7 @@ namespace AttendanceTracker.Models.Implements
             _attendanceRepo = attendanceRepo;
         }
 
-        public IEnumerable<AttendanceResponse> GetAttendance(string attendanceDate)
+        public IEnumerable<AttendanceResponse> GetAttendance(string attendanceDate, int classRoomId)
         {
             IEnumerable<AttendanceResponse> attendanceResponses = new AttendanceResponse[] { };
             DateTime? filterDate = null;
@@ -40,35 +40,99 @@ namespace AttendanceTracker.Models.Implements
             {
                 filterDate = DateTime.Today.Date;
             }
-
-            // TODO query by date
-            // TODO add attendance response for data view
-            var attendances = _attendanceRepo.GetAll().Where(x => x.CreatedAt.Value.Date == filterDate).OrderByDescending(x => x.CreatedAt).ToList();
-            foreach (var att in attendances)
+            else
             {
-                attendanceResponses = attendanceResponses.Append(CreateAttendanceResponse(att));
+                filterDate = DateTime.Parse(attendanceDate).Date;
             }
+            
+            Console.WriteLine("filter date is" +  filterDate);
+
+            if (classRoomId == 0)
+            {
+                Console.WriteLine("returning all attendances");
+                // return all attendances
+                var attendances = _attendanceRepo.GetAll().Where(x => x.CreatedAt.Value.Date == filterDate)
+                    .OrderByDescending(x => x.CreatedAt).ToList();
+                foreach (var att in attendances)
+                {
+                    attendanceResponses = attendanceResponses.Append(CreateAttendanceResponse(att, false, null));
+                }
+            }
+            else
+            {
+                Console.WriteLine("returning by class attendance");
+
+                Classroom classroom = _classroomRepo.Get(x => x.Id == classRoomId).FirstOrDefault();
+                if (classroom != null)
+                {
+                    IEnumerable<Student> students = _studentRepo.GetAll().Where(x => x.ClassroomId == classroom.Id).ToList();
+                    foreach (var student in students)
+                    {
+                        var attendanceChecking = _attendanceRepo.GetAll().Where(x =>
+                            x.StudentId == student.Id && x.CreatedAt.Value.Date == filterDate);
+                        if (attendanceChecking.Any())
+                        {
+                            // attended
+                            attendanceResponses = attendanceResponses.Append(CreateAttendanceResponse(attendanceChecking.First(), true, student));
+
+                        }
+                        else
+                        {
+                            // did not attend
+                            attendanceResponses = attendanceResponses.Append(CreateAttendanceResponse(null, false, student));
+
+                        }
+                    }
+                }
+            }
+         
 
             return attendanceResponses;
         }
 
-        public AttendanceResponse CreateAttendanceResponse(Attendance attendance)
+        public AttendanceResponse CreateAttendanceResponse(Attendance attendance, bool attended, Student studentObj)
         {
             var attendanceResponse = new AttendanceResponse();
-            var student = _studentRepo.Get(x => x.Id == attendance.StudentId).FirstOrDefault();
-            if (student != null)
+
+            if (attendance != null )
             {
-                // checking for today attendance
+                var student = _studentRepo.Get(x => x.Id == attendance.StudentId).FirstOrDefault();
+                if (student != null)
+                {
+                    // checking for today attendance
+                    attendanceResponse.Success = true;
+                    var studentClassroom = _classroomRepo.Get(x => x.Id == student.ClassroomId).FirstOrDefault();
+                    attendanceResponse.AttendanceId = attendance.Id;
+                    attendanceResponse.StudentId = student.Id;
+                    attendanceResponse.StudentName = student.Name;
+                    attendanceResponse.StudentIcNumber = student.IcNumber;
+                    attendanceResponse.ClassroomId = studentClassroom.Id;
+                    attendanceResponse.ClassroomName = studentClassroom.Name;
+                    attendanceResponse.CheckedInTime = attendance.CreatedAt;
+                    TimeSpan end = new TimeSpan(7, 45, 0);
+                    if (attendance.CreatedAt != null && attendance.CreatedAt.Value.TimeOfDay <= end)
+                    {
+                        attendanceResponse.Status = "good";
+                    }
+                    else if (attendance.CreatedAt != null && attendance.CreatedAt.Value.TimeOfDay > end)
+                    {
+                        attendanceResponse.Status = "bad";
+
+                    }
+                }
+            }
+            else 
+            {
                 attendanceResponse.Success = true;
-                var studentClassroom = _classroomRepo.Get(x => x.Id == student.ClassroomId).FirstOrDefault();
-                attendanceResponse.AttendanceId = attendance.Id;
-                attendanceResponse.StudentId = student.Id;
-                attendanceResponse.StudentName = student.Name;
-                attendanceResponse.StudentIcNumber = student.IcNumber;
+                var studentClassroom = _classroomRepo.Get(x => x.Id == studentObj.ClassroomId).FirstOrDefault();
+                attendanceResponse.StudentId = studentObj.Id;
+                attendanceResponse.StudentName = studentObj.Name;
+                attendanceResponse.StudentIcNumber = studentObj.IcNumber;
                 attendanceResponse.ClassroomId = studentClassroom.Id;
                 attendanceResponse.ClassroomName = studentClassroom.Name;
-                attendanceResponse.CheckedInTime = attendance.CreatedAt;
+                attendanceResponse.Status = "no-attendance";
             }
+       
 
             return attendanceResponse;
         }

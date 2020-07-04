@@ -11,6 +11,8 @@ namespace AttendanceTracker.Models.Contracts
         public int ClassroomId { get; set; }
         public string ClassroomName { get; set; }
         public DateTime? CheckedInTime { get; set; }
+        
+        public string Status { get; set; }
 
         public bool Success { get; set; }
         public string Reason { get; set; }
