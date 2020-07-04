@@ -45,11 +45,9 @@ namespace AttendanceTracker.Models.Implements
                 filterDate = DateTime.Parse(attendanceDate).Date;
             }
             
-            Console.WriteLine("filter date is" +  filterDate);
 
             if (classRoomId == 0)
             {
-                Console.WriteLine("returning all attendances");
                 // return all attendances
                 var attendances = _attendanceRepo.GetAll().Where(x => x.CreatedAt.Value.Date == filterDate)
                     .OrderByDescending(x => x.CreatedAt).ToList();
@@ -60,7 +58,6 @@ namespace AttendanceTracker.Models.Implements
             }
             else
             {
-                Console.WriteLine("returning by class attendance");
 
                 Classroom classroom = _classroomRepo.Get(x => x.Id == classRoomId).FirstOrDefault();
                 if (classroom != null)
