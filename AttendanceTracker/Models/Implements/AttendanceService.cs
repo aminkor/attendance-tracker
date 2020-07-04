@@ -106,12 +106,12 @@ namespace AttendanceTracker.Models.Implements
                     attendanceResponse.ClassroomId = studentClassroom.Id;
                     attendanceResponse.ClassroomName = studentClassroom.Name;
                     attendanceResponse.CheckedInTime = attendance.CreatedAt;
-                    TimeSpan end = new TimeSpan(7, 45, 0);
-                    if (attendance.CreatedAt != null && attendance.CreatedAt.Value.TimeOfDay <= end)
+                    TimeSpan end = new TimeSpan(7, 31, 0);
+                    if (attendance.CreatedAt != null && attendance.CreatedAt.Value.TimeOfDay < end)
                     {
                         attendanceResponse.Status = "good";
                     }
-                    else if (attendance.CreatedAt != null && attendance.CreatedAt.Value.TimeOfDay > end)
+                    else if (attendance.CreatedAt != null && attendance.CreatedAt.Value.TimeOfDay >= end)
                     {
                         attendanceResponse.Status = "bad";
 
