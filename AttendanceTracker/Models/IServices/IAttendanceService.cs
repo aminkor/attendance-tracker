@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using AttendanceTracker.Models.Contracts;
+using Microsoft.AspNetCore.Mvc;
 
 namespace AttendanceTracker.Models.IServices
 {
