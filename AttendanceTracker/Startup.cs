@@ -31,6 +31,7 @@ namespace AttendanceTracker
             services.AddTransient(typeof(IDataRepository<>), typeof(DataRepository<>));
             services.AddScoped<IAttendanceService, AttendanceService>();
             services.AddScoped<IClassroomService, ClassroomService>();
+            services.AddScoped<IStudentService, StudentService>();
 
             services.Configure<RequestLocalizationOptions>(
                 options =>
