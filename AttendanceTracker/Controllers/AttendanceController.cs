@@ -37,15 +37,19 @@ namespace AttendanceTracker.Controllers
         private readonly IDataRepository<Classroom> _classroomRepo;
         private readonly IDataRepository<Student> _studentRepo;
         private readonly IDataRepository<Attendance> _attendanceRepo;
+        private readonly IDataRepository<Studentclassroom> _studentclassroomRepo;
 
         public AttendanceController(IAttendanceService attendanceService, IDataRepository<Classroom> classroomRepo,
             IDataRepository<Student> studentRepo,
-            IDataRepository<Attendance> attendanceRepo)
+            IDataRepository<Attendance> attendanceRepo,
+            IDataRepository<Studentclassroom> studentclassroomRepo)
         {
             _attendanceService = attendanceService;
             _classroomRepo = classroomRepo;
             _studentRepo = studentRepo;
             _attendanceRepo = attendanceRepo;
+            _studentclassroomRepo = studentclassroomRepo;
+
         }
 
         // GET
@@ -108,8 +112,13 @@ namespace AttendanceTracker.Controllers
             FileStreamResult result = null;
             foreach (var holderClassroom in classRooms)
             {
-                var students = _studentRepo.GetAll().Where(x => x.ClassroomId == holderClassroom.Id).ToList();
-
+                // var students = _studentRepo.GetAll().Where(x => x.ClassroomId == holderClassroom.Id).ToList();
+                var classroomStudentIds = _studentclassroomRepo.GetAll()
+                    .Where(x => x.ClassroomId == holderClassroom.Id && x.IsCurrent.HasValue && x.IsCurrent == true)
+                    .Select(x => x.StudentId).ToList();
+                    
+                    
+                var students = _studentRepo.GetAll().Where(x => classroomStudentIds.Contains(x.Id)).ToList();
                 PointF firstLocation = new PointF(10f, 140f);
                 PointF secondLocation = new PointF(10f, 160f);
                 PointF thirdLocation = new PointF(10f, 180f);
@@ -132,7 +141,9 @@ namespace AttendanceTracker.Controllers
                         QRCode qrCode = new QRCode(qrCodeData);
                         Bitmap qrCodeImage = qrCode.GetGraphic(20);
 
-                        var classroom = _classroomRepo.Get(x => x.Id == student.ClassroomId).FirstOrDefault();
+                        var studentClassroom = this.GetStudentClassroom(student);
+
+                        var classroom = _classroomRepo.Get(x => x.Id == studentClassroom.ClassroomId).FirstOrDefault();
                         if (classroom != null)
                         {
                             using (Graphics graphics = Graphics.FromImage(cardCanvas))
@@ -200,7 +211,13 @@ namespace AttendanceTracker.Controllers
 
             return result;
         }
-        
+
+        private Studentclassroom GetStudentClassroom(Student student)
+        {
+            var currentTime = DateTime.Now;
+            return  _studentclassroomRepo.GetAll().Where(x => x.StudentId == student.Id && x.IsCurrent == true).FirstOrDefault();
+        }
+
         public FileStreamResult CreatePDF(List<string> bitmapPathList, string classroomName)
         {
             PdfDocument doc = new PdfDocument();

@@ -13,5 +13,8 @@ namespace AttendanceTracker.Models.IServices
         void ClassroomSync();
         void GenerateQRCode();
         void PraSync();
+        
+        void SeedStudentClassrooms();
+
     }
 }

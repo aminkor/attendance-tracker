@@ -70,6 +70,7 @@ namespace AttendanceTracker
             // service.ClassroomSync();
             // service.GenerateQRCode();
             // service.PraSync();
+            // service.SeedStudentClassrooms();
         }
         
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)

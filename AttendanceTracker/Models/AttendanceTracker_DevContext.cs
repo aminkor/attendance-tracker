@@ -20,6 +20,8 @@ namespace AttendanceTracker.Models
         public virtual DbSet<Classroom> Classroom { get; set; }
         public virtual DbSet<Student> Student { get; set; }
         public virtual DbSet<Attendance> Attendance { get; set; }
+        public virtual DbSet<Studentclassroom> StudentClassroom { get; set; }
+
 
         static public IConfigurationRoot Configuration { get; set; }
 

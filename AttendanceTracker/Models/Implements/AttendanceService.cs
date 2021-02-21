@@ -8,6 +8,7 @@ using AttendanceTracker.Models.Contracts;
 using AttendanceTracker.Models.IServices;
 using AttendanceTracker.Models.Repository;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualBasic.FileIO;
 using OfficeOpenXml;
 using QRCoder;
@@ -22,14 +23,18 @@ namespace AttendanceTracker.Models.Implements
         private readonly IDataRepository<Classroom> _classroomRepo;
         private readonly IDataRepository<Student> _studentRepo;
         private readonly IDataRepository<Attendance> _attendanceRepo;
+        private readonly IDataRepository<Studentclassroom> _studentclassroomRepo;
 
         public AttendanceService(IDataRepository<Classroom> classroomRepo,
             IDataRepository<Student> studentRepo,
-            IDataRepository<Attendance> attendanceRepo)
+            IDataRepository<Attendance> attendanceRepo,
+            IDataRepository<Studentclassroom> studentclassroomRepo)
         {
             _classroomRepo = classroomRepo;
             _studentRepo = studentRepo;
             _attendanceRepo = attendanceRepo;
+            _studentclassroomRepo = studentclassroomRepo;
+
         }
 
         public IEnumerable<AttendanceResponse> GetAttendance(string attendanceDate, int classRoomId)
@@ -62,7 +67,13 @@ namespace AttendanceTracker.Models.Implements
                 Classroom classroom = _classroomRepo.Get(x => x.Id == classRoomId).FirstOrDefault();
                 if (classroom != null)
                 {
-                    IEnumerable<Student> students = _studentRepo.GetAll().Where(x => x.ClassroomId == classroom.Id).ToList();
+                    // getting student classrooms first, and then filter by classroom and is current, and get student by those ids
+                    var classroomStudentIds = _studentclassroomRepo.GetAll()
+                        .Where(x => x.ClassroomId == classroom.Id && x.IsCurrent.HasValue && x.IsCurrent == true)
+                        .Select(x => x.StudentId).ToList();
+                    
+                    
+                    IEnumerable<Student> students = _studentRepo.GetAll().Where(x => classroomStudentIds.Contains(x.Id)).ToList();
                     foreach (var student in students)
                     {
                         var attendanceChecking = _attendanceRepo.GetAll().Where(x =>
@@ -98,13 +109,22 @@ namespace AttendanceTracker.Models.Implements
                 {
                     // checking for today attendance
                     attendanceResponse.Success = true;
-                    var studentClassroom = _classroomRepo.Get(x => x.Id == student.ClassroomId).FirstOrDefault();
                     attendanceResponse.AttendanceId = attendance.Id;
                     attendanceResponse.StudentId = student.Id;
                     attendanceResponse.StudentName = student.Name;
                     attendanceResponse.StudentIcNumber = student.IcNumber;
-                    attendanceResponse.ClassroomId = studentClassroom.Id;
-                    attendanceResponse.ClassroomName = studentClassroom.Name;
+                    
+                    var studentClassroomRow = this.GetStudentClassroom(student);
+                    if (studentClassroomRow != null)
+                    {
+                        var studentClassroom = _classroomRepo.Get(x => x.Id == studentClassroomRow.ClassroomId).FirstOrDefault();
+                        if (studentClassroom != null)
+                        {
+                            attendanceResponse.ClassroomId = studentClassroom.Id;
+                            attendanceResponse.ClassroomName = studentClassroom.Name;
+
+                        }
+                    }
                     attendanceResponse.CheckedInTime = attendance.CreatedAt;
                     TimeSpan end = new TimeSpan(7, 31, 0);
                     if (attendance.CreatedAt != null && attendance.CreatedAt.Value.TimeOfDay < end)
@@ -121,12 +141,21 @@ namespace AttendanceTracker.Models.Implements
             else 
             {
                 attendanceResponse.Success = true;
-                var studentClassroom = _classroomRepo.Get(x => x.Id == studentObj.ClassroomId).FirstOrDefault();
                 attendanceResponse.StudentId = studentObj.Id;
                 attendanceResponse.StudentName = studentObj.Name;
                 attendanceResponse.StudentIcNumber = studentObj.IcNumber;
-                attendanceResponse.ClassroomId = studentClassroom.Id;
-                attendanceResponse.ClassroomName = studentClassroom.Name;
+                
+                var studentClassroomRow = this.GetStudentClassroom(studentObj);
+                if (studentClassroomRow != null)
+                {
+                    var studentClassroom = _classroomRepo.Get(x => x.Id == studentClassroomRow.ClassroomId).FirstOrDefault();
+                    if (studentClassroom != null)
+                    {
+                        attendanceResponse.ClassroomId = studentClassroom.Id;
+                        attendanceResponse.ClassroomName = studentClassroom.Name;
+
+                    }
+                }
                 attendanceResponse.Status = "no-attendance";
             }
        
@@ -151,13 +180,22 @@ namespace AttendanceTracker.Models.Implements
                     attendance = _attendanceRepo.InsertOnCommit(attendance);
                     _attendanceRepo.CommitChanges();
                     attendanceResponse.Success = true;
-                    var studentClassroom = _classroomRepo.Get(x => x.Id == student.ClassroomId).FirstOrDefault();
                     attendanceResponse.AttendanceId = attendance.Id;
                     attendanceResponse.StudentId = student.Id;
                     attendanceResponse.StudentName = student.Name;
                     attendanceResponse.StudentIcNumber = student.IcNumber;
-                    attendanceResponse.ClassroomId = studentClassroom.Id;
-                    attendanceResponse.ClassroomName = studentClassroom.Name;
+                    
+                    var studentClassroomRow = this.GetStudentClassroom(student);
+                    if (studentClassroomRow != null)
+                    {
+                        var studentClassroom = _classroomRepo.Get(x => x.Id == studentClassroomRow.ClassroomId).FirstOrDefault();
+                        if (studentClassroom != null)
+                        {
+                            attendanceResponse.ClassroomId = studentClassroom.Id;
+                            attendanceResponse.ClassroomName = studentClassroom.Name;
+
+                        }
+                    }
                     attendanceResponse.CheckedInTime = attendance.CreatedAt;
                 }
                 else
@@ -179,11 +217,14 @@ namespace AttendanceTracker.Models.Implements
         {
             string[] array = {"D1.xlsx", "D2.xlsx", "D3.xlsx", "D4.xlsx", "D5.xlsx", "D6.xlsx", "KHAS.xlsx"};
             List<string> list3 = new List<string>(array);
+            List<Student> studentsToAdd = new List<Student>();
             var iterator = 1;
             foreach (var fileName in list3)
             {
                 //Open the workbook (or create it if it doesn't exist)
-                var fi = new FileInfo(@"C:\Users\LENOVO\Downloads\skpp112\" + fileName);
+                var fi = new FileInfo(@"C:\Users\LENOVO\Downloads\skpp112 - 2021\" + fileName);
+                ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+
                 using (var p = new ExcelPackage(fi))
                 {
                     var workSheet = p.Workbook.Worksheets[0];
@@ -201,7 +242,7 @@ namespace AttendanceTracker.Models.Implements
                         for (int col = start.Column; col <= end.Column; col++)
                         {
                             // first column
-                            if (col == 1)
+                            if (col == 2)
                             {
                                 string cellValue = workSheet.Cells[row, col].Text;
 
@@ -217,6 +258,17 @@ namespace AttendanceTracker.Models.Implements
                                     {
                                         // classroom existed;
                                         holderClsr = classroom.First();
+                                        if (iterator <= 6)
+                                        {
+                                            holderClsr.Grade = iterator.ToString();
+                                        }
+                                        else
+                                        {
+                                            holderClsr.Grade = "KHAS";
+                                        }
+
+                                        _classroomRepo.UpdateOnCommit(holderClsr);
+                                        _classroomRepo.CommitChanges();
                                     }
 
                                     else
@@ -264,7 +316,7 @@ namespace AttendanceTracker.Models.Implements
                                 }
                             }
 
-                            if (col == 3)
+                            if (col == 4)
                             {
                                 string cellValue = workSheet.Cells[row, col].Text;
                                 if (cellValue.Length > 0 && emptyIcColumn == true)
@@ -277,14 +329,25 @@ namespace AttendanceTracker.Models.Implements
 
                         if (validStudentRow)
                         {
-                            string icNum = workSheet.Cells[row, 1].Text;
-                            string birthCertificateNum = workSheet.Cells[row, 2].Text;
-                            string studentName = workSheet.Cells[row, 3].Text;
-                            string dob = workSheet.Cells[row, 4].Text;
-                            string paIc = workSheet.Cells[row, 5].Text;
-                            string paName = workSheet.Cells[row, 6].Text;
-                            string maIc = workSheet.Cells[row, 7].Text;
-                            string maName = workSheet.Cells[row, 8].Text;
+                            // string icNum = workSheet.Cells[row, 1].Text;
+                            // string birthCertificateNum = workSheet.Cells[row, 2].Text;
+                            // string studentName = workSheet.Cells[row, 3].Text;
+                            // string dob = workSheet.Cells[row, 4].Text;
+                            // string paIc = workSheet.Cells[row, 5].Text;
+                            // string paName = workSheet.Cells[row, 6].Text;
+                            // string maIc = workSheet.Cells[row, 7].Text;
+                            // string maName = workSheet.Cells[row, 8].Text;
+                            string icNum = workSheet.Cells[row, 2].Text;
+                            string birthCertificateNum = workSheet.Cells[row, 3].Text;
+                            string studentName = workSheet.Cells[row, 4].Text;
+                            // string dob = workSheet.Cells[row, 4].Text;
+                            // string paIc = workSheet.Cells[row, 5].Text;
+                            // string paName = workSheet.Cells[row, 6].Text;
+                            // string maIc = workSheet.Cells[row, 7].Text;
+                            // string maName = workSheet.Cells[row, 8].Text;
+
+                            Student existingStudent = _studentRepo.GetAll()
+                                .Where(student1 => EF.Functions.Like(student1.IcNumber, $"%{icNum}%") ||  EF.Functions.Like(student1.Name, $"%{studentName}%")).FirstOrDefault();
 
                             Console.WriteLine(studentName);
                             if (validStudentRowWithNoIc)
@@ -292,27 +355,92 @@ namespace AttendanceTracker.Models.Implements
                                 Console.WriteLine("Valid Student Row with no IC");
                             }
 
-                            Student student = new Student();
-                            student.Name = studentName;
-                            student.IcNumber = icNum;
-                            student.BirthCertificate = birthCertificateNum;
-                            student.DateOfBirth = DateTime.Parse(dob).Date;
-                            student.FatherIcNumber = paIc;
-                            student.FatherName = paName;
-                            student.MotherIcNumber = maIc;
-                            student.MotherName = maName;
-                            student.ClassroomId = holderClsr.Id;
-                            student.CreatedAt = DateTime.Now;
-                            student.UpdatedAt = DateTime.Now;
-                            _studentRepo.InsertOnCommit(student);
-                            _studentRepo.CommitChanges();
+
+                            if (existingStudent == null)
+                            {
+                                Student student = new Student();
+                                student.Name = studentName;
+                                student.IcNumber = icNum;
+                                student.BirthCertificate = birthCertificateNum;
+                                // student.DateOfBirth = DateTime.Parse(dob).Date;
+                                // student.FatherIcNumber = paIc;
+                                // student.FatherName = paName;
+                                // student.MotherIcNumber = maIc;
+                                // student.MotherName = maName;
+                                // student.ClassroomId = holderClsr.Id;
+                                student.CreatedAt = DateTime.Now;
+                                student.UpdatedAt = DateTime.Now;
+                                _studentRepo.InsertOnCommit(student);
+                                _studentRepo.CommitChanges();
+                                // // creating classroom for student
+                                var studentClassroom = this.CreateStudentClassroom(student,holderClsr.Id);
+                                if (studentClassroom != null)
+                                {
+                                    // result.ClassroomId = studentClassroom.ClassroomId;
+                                }
+                                // studentsToAdd.Add(student);
+                            }
+                            else
+                            {
+                                // create classroom here
+                                var studentClassroom = this.CreateStudentClassroom(existingStudent, holderClsr.Id);
+                                if (studentClassroom != null)
+                                {
+                                    // result.ClassroomId = studentClassroom.ClassroomId;
+
+                                }
+                            }
+
+                      
                         }
                     }
                 }
 
                 iterator += 1;
             }
+            // Console.WriteLine(studentsToAdd);
+
         }
+
+        private Studentclassroom CreateStudentClassroom(Student student,int classRoomId)
+        {
+            this.UnCurrentPastClassroom(student);
+            Studentclassroom studentclassroom = new Studentclassroom();
+            studentclassroom.StudentId = student.Id;
+            // if (updateObj != null)
+            // {
+            //     studentclassroom.ClassroomId = updateObj.ClassroomId;
+            // }
+            // else
+            // {
+            //     studentclassroom.ClassroomId = student.ClassroomId;
+            //
+            // }
+            studentclassroom.ClassroomId = classRoomId;
+            var currentTime = DateTime.Now;
+            studentclassroom.CreatedAt = currentTime;
+            studentclassroom.UpdatedAt = currentTime;
+            int year = DateTime.Now.Year;
+            DateTime firstDay = new DateTime(year , 1, 1);
+            studentclassroom.EffectiveFrom = firstDay;
+            studentclassroom.IsCurrent = true;
+            studentclassroom = _studentclassroomRepo.InsertOnCommit(studentclassroom);
+            _classroomRepo.CommitChanges();
+            return studentclassroom;
+        }
+        
+        private void UnCurrentPastClassroom(Student student)
+        {
+            var pastClassrooms = _studentclassroomRepo.GetAll().Where(x => x.StudentId == student.Id).ToList();
+            foreach (var classroom in pastClassrooms)
+            {
+                classroom.IsCurrent = false;
+                _studentclassroomRepo.UpdateOnCommit(classroom);
+                
+            }
+            _studentclassroomRepo.CommitChanges();
+        }
+
 
         public void GenerateQRCode()
         {
@@ -320,7 +448,13 @@ namespace AttendanceTracker.Models.Implements
             foreach (var holderClassroom in classRooms)
             { 
                 
-                var students = _studentRepo.GetAll().Where(x => x.ClassroomId == holderClassroom.Id).ToList();
+                // var students = _studentRepo.GetAll().Where(x => x.ClassroomId == holderClassroom.Id).ToList();
+                var classroomStudentIds = _studentclassroomRepo.GetAll()
+                    .Where(x => x.ClassroomId == holderClassroom.Id && x.IsCurrent.HasValue && x.IsCurrent == true)
+                    .Select(x => x.StudentId).ToList();
+                    
+                    
+                var students = _studentRepo.GetAll().Where(x => classroomStudentIds.Contains(x.Id)).ToList();
                 
             PointF firstLocation = new PointF(10f, 140f);
             PointF secondLocation = new PointF(10f, 160f);
@@ -447,7 +581,7 @@ namespace AttendanceTracker.Models.Implements
 
         public void PraSync()
         {
-            var path = @"C:\Users\LENOVO\Downloads\skpp112\PRA.csv"; 
+            var path = @"C:\Users\LENOVO\Downloads\skpp112 - 2021\PRA 2.csv"; 
             using (TextFieldParser csvParser = new TextFieldParser(path))
             {
                 csvParser.CommentTokens = new string[] { "#" };
@@ -462,29 +596,33 @@ namespace AttendanceTracker.Models.Implements
                     // Read current line fields, pointer moves to the next line.
                     string[] fields = csvParser.ReadFields();
                     
-                    string icNum = fields[2];
-                    string birthCertificateNum = fields[3];
-                    string studentName = fields[1];
-                    string dob = fields[4];
-                    string paIc = fields[39];
-                    string paName = fields[38];
-                    string maIc = fields[29];
-                    string maName = fields[28];
-                    string classroomName = fields[58];
-                    string formattedClassroomName = "";
-                    if (classroomName == "PRAJASMIN")
+                    string icNum = fields[1];
+                    if (icNum.Substring(0,1) == "*")
                     {
-                        formattedClassroomName = "PRA JASMIN";
+                        icNum = icNum.Remove(0,1);
+                    }
+                    // string birthCertificateNum = fields[3];
+                    string studentName = fields[0];
+                    // string dob = fields[4];
+                    // string paIc = fields[39];
+                    // string paName = fields[38];
+                    // string maIc = fields[29];
+                    // string maName = fields[28];
+                    string classroomName = fields[2];
+                    string formattedClassroomName = "";
+                    if (classroomName == "PRA JASMIN")
+                    {
+                        formattedClassroomName = "JASMIN";
                     }
                     
-                    if (classroomName == "PRAIXORA")
+                    if (classroomName == "PRA IXORA")
                     {
-                        formattedClassroomName = "PRA IXORA";
+                        formattedClassroomName = "IXORA";
                     }
                     
                     if (classroomName == "PRA ALAMANDA")
                     {
-                        formattedClassroomName = "PRA ALAMANDA";
+                        formattedClassroomName = "ALAMANDA";
                     }
                     
                     var classroom = _classroomRepo.GetAll().Where(x => x.Name == formattedClassroomName);
@@ -507,23 +645,74 @@ namespace AttendanceTracker.Models.Implements
                         studentClassroom = _classroomRepo.InsertOnCommit(freshClassroom);
                         _classroomRepo.CommitChanges();
                     }
-                    Console.WriteLine(studentName + icNum + birthCertificateNum + dob +maIc + maName + paIc + paName + formattedClassroomName);
-                    Student student = new Student();
-                    student.Name = studentName;
-                    student.IcNumber = icNum;
-                    student.BirthCertificate = birthCertificateNum;
-                    student.DateOfBirth = DateTime.Parse(dob).Date;
-                    student.FatherIcNumber = paIc;
-                    student.FatherName = paName;
-                    student.MotherIcNumber = maIc;
-                    student.MotherName = maName;
-                    student.ClassroomId = studentClassroom.Id;
-                    student.CreatedAt = DateTime.Now;
-                    student.UpdatedAt = DateTime.Now;
-                    _studentRepo.InsertOnCommit(student);
-                    _studentRepo.CommitChanges();
+                    
+                    
+                    Student existingStudent = _studentRepo.GetAll()
+                        .Where(student1 => EF.Functions.Like(student1.IcNumber, $"%{icNum}%") ||  EF.Functions.Like(student1.Name, $"%{studentName}%")).FirstOrDefault();
+
+                    if (existingStudent == null)
+                    {
+                        Console.WriteLine(studentName + icNum  + formattedClassroomName);
+                        Student student = new Student();
+                        student.Name = studentName;
+                        student.IcNumber = icNum;
+                        // student.BirthCertificate = birthCertificateNum;
+                        // student.DateOfBirth = DateTime.Parse(dob).Date;
+                        // student.FatherIcNumber = paIc;
+                        // student.FatherName = paName;
+                        // student.MotherIcNumber = maIc;
+                        // student.MotherName = maName;
+                        // student.ClassroomId = studentClassroom.Id;
+                        var stdClasr = this.CreateStudentClassroom(student,studentClassroom.Id);
+                        if (studentClassroom != null)
+                        {
+                            // result.ClassroomId = studentClassroom.ClassroomId;
+                        }
+                        student.CreatedAt = DateTime.Now;
+                        student.UpdatedAt = DateTime.Now;
+                        _studentRepo.InsertOnCommit(student);
+                        _studentRepo.CommitChanges();
+                    }
+                    else
+                    {
+                        // update classroom
+                        var stdClasr = this.CreateStudentClassroom(existingStudent,studentClassroom.Id);
+                        if (studentClassroom != null)
+                        {
+                            // result.ClassroomId = studentClassroom.ClassroomId;
+                        }
+                    }
+              
                 }
             }
         }
+        
+        private Studentclassroom GetStudentClassroom(Student student)
+        {
+            var currentTime = DateTime.Now;
+            return  _studentclassroomRepo.GetAll().Where(x => x.StudentId == student.Id && x.IsCurrent == true).FirstOrDefault();
+        }
+        
+        public void SeedStudentClassrooms()
+        {
+            var students = _studentRepo.GetAll().ToList();
+            foreach (var student in students)
+            {
+                Studentclassroom studentclassroom = new Studentclassroom();
+                studentclassroom.StudentId = student.Id;
+                studentclassroom.ClassroomId = student.ClassroomId;
+                var currentTime = DateTime.Now.AddYears(-1);
+                studentclassroom.CreatedAt = currentTime;
+                studentclassroom.UpdatedAt = currentTime;
+                int year = DateTime.Now.AddYears(-1).Year;
+                DateTime firstDay = new DateTime(year , 1, 1);
+                studentclassroom.EffectiveFrom = firstDay;
+                studentclassroom.IsCurrent = true;
+                studentclassroom = _studentclassroomRepo.InsertOnCommit(studentclassroom);
+                _studentclassroomRepo.CommitChanges();
+            }
+        }
+
+
     }
 }
