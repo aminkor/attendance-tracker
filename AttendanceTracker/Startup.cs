@@ -32,6 +32,7 @@ namespace AttendanceTracker
             services.AddScoped<IAttendanceService, AttendanceService>();
             services.AddScoped<IClassroomService, ClassroomService>();
             services.AddScoped<IStudentService, StudentService>();
+            services.AddScoped<IDashboardService, DashboardService>();
 
             services.Configure<RequestLocalizationOptions>(
                 options =>
