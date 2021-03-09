@@ -75,7 +75,7 @@ namespace AttendanceTracker.Models.Implements
                 string chartName = this.GenChartName(grade);
                 var classroomsByGrade = _classroomRepo.GetAll().Where(x => x.Grade == grade).Select(x => x.Id).ToList();
                 var classroomsStudents = _studentClassroomRepo.GetAll()
-                    .Where(x => classroomsByGrade.Contains(x.ClassroomId)).Select(x => x.StudentId).ToList();
+                    .Where(x => x.IsCurrent == true && classroomsByGrade.Contains(x.ClassroomId)).Select(x => x.StudentId).ToList();
                 var gradeAttendances = selectedDateAttendances.Where(x => classroomsStudents.Contains(x.StudentId));
                 
                 
