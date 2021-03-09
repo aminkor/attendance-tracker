@@ -47,9 +47,10 @@ namespace AttendanceTracker.Models.Implements
             // var graphAttendancePercentages = this.BuildAttendancePercentagesGraph(selectedDateAttendances);
             var dashboardStatistics = this.BuildAttendancePercentagesGraph(selectedDateAttendances);
 
+            var totalStudentsByCurrent = _studentClassroomRepo.GetAll().Count(x => x.IsCurrent == true);
             DashboardResponse dashboardResponse = new DashboardResponse
             {
-                StudentsCount = _studentRepo.GetAll().Count(),
+                StudentsCount = totalStudentsByCurrent,
                 AttendancesCount = selectedDateAttendances.Count(),
                 AttendancesOnTimeCount = selectedDateAttendances.Count(x => x.CreatedAt.Value.TimeOfDay < lateCutoff),
                 AttendancesLateCount = selectedDateAttendances.Count(x => x.CreatedAt.Value.TimeOfDay >= lateCutoff),
