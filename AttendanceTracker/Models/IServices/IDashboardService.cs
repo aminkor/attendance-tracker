@@ -7,5 +7,6 @@ namespace AttendanceTracker.Models.IServices
     public interface IDashboardService
     {
         DashboardResponse GetDashboard(string attendanceDate);
+        List<StudentResponse> StudentsFilter(string? attendanceDate, string? queryType, int? gradeId, int? classroomId);
     }
 }
