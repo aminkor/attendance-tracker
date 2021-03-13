@@ -63,7 +63,7 @@ namespace AttendanceTracker.Models.Implements
             return dashboardResponse;
         }
 
-        public List<StudentResponse> StudentsFilter(string? attendanceDate, string? queryType, int? gradeId,
+        public List<StudentResponse> StudentsFilter(string? attendanceDate, string? queryType, string? gradeId,
             int? classroomId)
         {
             List<StudentResponse> studentResponses = new List<StudentResponse>();
@@ -85,10 +85,77 @@ namespace AttendanceTracker.Models.Implements
             {
                 this.GetAttendance(studentResponses, attendanceDate, "totalLate");
             }
+            else if (queryType == "totalAttendByGrade")
+            {
+                this.GetGradeAttendance(studentResponses, attendanceDate, queryType, gradeId);
+            }
+            else if (queryType == "totalAbsenceByGrade")
+            {
+                this.GetGradeAttendance(studentResponses, attendanceDate, queryType, gradeId);
+
+            }
 
 
             return studentResponses;
 
+        }
+
+        private List<StudentResponse> GetGradeAttendance(List<StudentResponse> studentResponses, string? attendanceDate, string? queryType, string? gradeId)
+        {
+            DateTime selectedDate;
+            if (attendanceDate == null)
+            {
+                selectedDate = DateTime.Today;
+            }
+            else
+            { 
+                selectedDate = DateTime.Parse(attendanceDate);
+
+            }
+            var startDay = selectedDate.Date;
+            var endDay = selectedDate.AddDays(1).AddTicks(-1);
+
+            List<Attendance> selectedDateAttendances =
+                new List<Attendance>(_attendanceRepo.GetAll().Where(x => x.CreatedAt >= startDay && x.CreatedAt <= endDay));
+            var classroomsByGrade = _classroomRepo.GetAll().Where(x => x.Grade == gradeId).Select(x => x.Id).ToList();
+            var classroomsStudents = _studentClassroomRepo.GetAll()
+                .Where(x => x.IsCurrent == true && classroomsByGrade.Contains(x.ClassroomId)).Select(x => x.StudentId).ToList();
+            var gradeAttendances = selectedDateAttendances.Where(x => classroomsStudents.Contains(x.StudentId));
+
+            List<Student> studentsList = new List<Student>();
+            if (queryType == "totalAttendByGrade")
+            {
+                studentsList = _studentRepo.GetAll()
+                    .Where(x => gradeAttendances.Select(attendance => attendance.StudentId).ToList().Contains(x.Id)).ToList();
+            }
+            else if (queryType == "totalAbsenceByGrade")
+            {
+                studentsList = _studentRepo.GetAll().Where(student =>
+                    classroomsStudents.Contains(student.Id) && !gradeAttendances
+                        .Select(attendance => attendance.StudentId).ToList().Contains(student.Id)).ToList();
+            }
+
+            foreach (var student in studentsList)
+            {
+                StudentResponse studentResponse = new StudentResponse();
+                // get student obj
+                // get classroom obj
+                if (student != null)
+                {
+                    Studentclassroom studentclassroom = this.GetStudentClassroom(student);
+                    Classroom classroom = this.GetClassroom(studentclassroom.ClassroomId);
+                        
+                    studentResponse.StudentId = student.Id;
+                    studentResponse.StudentName = student.Name;
+                    studentResponse.StudentIcNumber = student.IcNumber;
+                    studentResponse.ClassroomId = classroom?.Id ?? 0;
+                    studentResponse.ClassroomName = classroom == null ? "" : classroom.Grade + " " + classroom.Name;;
+                    
+                    studentResponses.Add(studentResponse);
+                }
+            }
+
+            return studentResponses;
         }
 
         private void GetAttendance(List<StudentResponse> studentResponses, string attendanceDate, string queryType)

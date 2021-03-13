@@ -39,7 +39,7 @@ namespace AttendanceTracker.Controllers
         
         // GET Students Filer
         [HttpGet("StudentsFilter")]
-        public IActionResult StudentsFilter([FromQuery] string? attendanceDate, [FromQuery] string? queryType, [FromQuery] int? gradeId, [FromQuery] int? classroomId)
+        public IActionResult StudentsFilter([FromQuery] string? attendanceDate, [FromQuery] string? queryType, [FromQuery] string? gradeId, [FromQuery] int? classroomId)
         {
             List<StudentResponse> response;
             try
