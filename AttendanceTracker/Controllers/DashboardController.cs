@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using AttendanceTracker.Models;
 using AttendanceTracker.Models.Contracts;
+using AttendanceTracker.Models.Implements;
 using AttendanceTracker.Models.IServices;
 using AttendanceTracker.Models.Repository;
 using Microsoft.AspNetCore.Mvc;
@@ -37,7 +38,7 @@ namespace AttendanceTracker.Controllers
             return Ok(response);
         }
         
-        // GET Students Filer
+        // GET Students Filter
         [HttpGet("StudentsFilter")]
         public IActionResult StudentsFilter([FromQuery] string? attendanceDate, [FromQuery] string? queryType, [FromQuery] string? gradeId, [FromQuery] int? classroomId)
         {
@@ -45,6 +46,24 @@ namespace AttendanceTracker.Controllers
             try
             {
                 response = _dashboardService.StudentsFilter(attendanceDate, queryType, gradeId, classroomId);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+
+            return Ok(response);
+        }
+        
+        // GET Classroom Pie By Grade
+        [HttpGet("ClassroomPieByGrade")]
+        public IActionResult ClassroomPieByGrade([FromQuery] string? attendanceDate, [FromQuery] string? gradeId)
+        {
+            List<ClassroomPie> response;
+            try
+            {
+                response = _dashboardService.ClassroomPieByGrade(attendanceDate, gradeId);
             }
             catch (Exception e)
             {

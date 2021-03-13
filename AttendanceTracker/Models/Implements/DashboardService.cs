@@ -92,12 +92,102 @@ namespace AttendanceTracker.Models.Implements
             else if (queryType == "totalAbsenceByGrade")
             {
                 this.GetGradeAttendance(studentResponses, attendanceDate, queryType, gradeId);
-
+            }
+            else if (queryType == "totalOnTimeByClassroom")
+            {
+                this.GetClassroomAttendance(studentResponses, attendanceDate, queryType, gradeId, classroomId);
+            }
+            else if (queryType == "totalLateByClassroom")
+            {
+                this.GetClassroomAttendance(studentResponses, attendanceDate, queryType, gradeId, classroomId);
             }
 
 
             return studentResponses;
 
+        }
+
+        public List<ClassroomPie> ClassroomPieByGrade(string? attendanceDate, string? gradeId)
+        {
+            List<ClassroomPie> classroomPies = new List<ClassroomPie>();
+            var classrooms = _classroomRepo.GetAll().Where(x => x.Grade == gradeId).ToList();
+            DateTime selectedDate;
+            if (attendanceDate == null)
+            {
+                selectedDate = DateTime.Today;
+            }
+            else
+            { 
+                selectedDate = DateTime.Parse(attendanceDate);
+
+            }
+            var startDay = selectedDate.Date;
+            var endDay = selectedDate.AddDays(1).AddTicks(-1);
+
+            List<Attendance> selectedDateAttendances =
+                new List<Attendance>(_attendanceRepo.GetAll().Where(x => x.CreatedAt >= startDay && x.CreatedAt <= endDay));
+            foreach (var classroom in classrooms)
+            {
+                AttendanceSeries attendanceSeries = new AttendanceSeries();
+                List<AttendanceSeriesComponent> attendanceSeriesComponents = new List<AttendanceSeriesComponent>();
+
+                string chartName = classroom.Grade + " " + classroom.Name;
+                var classroomsStudents = _studentClassroomRepo.GetAll()
+                    .Where(x => x.IsCurrent == true && x.ClassroomId == classroom.Id).Select(x => x.StudentId).ToList();
+                var gradeAttendances = selectedDateAttendances.Where(x => classroomsStudents.Contains(x.StudentId));
+                
+                
+                // ontime v late
+
+                PunctualSeriesComponent punctualSeriesComponentOnTime = new PunctualSeriesComponent();
+                PunctualSeriesComponentExtra punctualSeriesComponentExtraOnTime = new PunctualSeriesComponentExtra();
+                PunctualSeriesComponent punctualSeriesComponentLate = new PunctualSeriesComponent();
+                PunctualSeriesComponentExtra punctualSeriesComponentExtraLate = new PunctualSeriesComponentExtra();
+          
+
+                TimeSpan lateCutoff = new TimeSpan(7, 31, 0);
+
+                punctualSeriesComponentOnTime.Name = "On Time";
+                punctualSeriesComponentOnTime.Value =
+                    gradeAttendances.Count(x => x.CreatedAt.Value.TimeOfDay < lateCutoff);
+
+                punctualSeriesComponentExtraOnTime.Color = "rgb(0, 177, 169)";
+                punctualSeriesComponentExtraOnTime.Percentage =
+                    (double) punctualSeriesComponentOnTime.Value / gradeAttendances.Count() * 100;
+
+                punctualSeriesComponentOnTime.Extra = punctualSeriesComponentExtraOnTime;
+                
+                punctualSeriesComponentLate.Name = "Late";
+                punctualSeriesComponentLate.Value =
+                    gradeAttendances.Count(x => x.CreatedAt.Value.TimeOfDay >= lateCutoff);
+
+                punctualSeriesComponentExtraLate.Color = "rgba(104, 70, 139, 0.9)";
+                punctualSeriesComponentExtraLate.Percentage =
+                    (double) punctualSeriesComponentLate.Value / gradeAttendances.Count() * 100;
+
+                punctualSeriesComponentLate.Extra = punctualSeriesComponentExtraLate;
+                
+            
+
+                List<PunctualSeriesComponent> punctualSeries = new List<PunctualSeriesComponent>();
+                punctualSeries.Add(punctualSeriesComponentOnTime);
+                punctualSeries.Add(punctualSeriesComponentLate);
+                // punctualSeries.Add(punctualSeriesComponentAbsence);
+
+                ClassroomPie classroomPie = new ClassroomPie();
+                classroomPie.ResultsGraph = punctualSeries;
+                classroomPie.Name = chartName;
+                classroomPie.NoGraphData = false;
+                classroomPie.MajorityGrade = new MajorityGrade();
+                classroomPie.ClassroomId = classroom.Id;
+                classroomPie.ClassroomName = classroom.Name;
+                classroomPies.Add(classroomPie);
+
+
+
+            }
+
+            return classroomPies;
         }
 
         private List<StudentResponse> GetGradeAttendance(List<StudentResponse> studentResponses, string? attendanceDate, string? queryType, string? gradeId)
@@ -133,6 +223,64 @@ namespace AttendanceTracker.Models.Implements
                 studentsList = _studentRepo.GetAll().Where(student =>
                     classroomsStudents.Contains(student.Id) && !gradeAttendances
                         .Select(attendance => attendance.StudentId).ToList().Contains(student.Id)).ToList();
+            }
+
+            foreach (var student in studentsList)
+            {
+                StudentResponse studentResponse = new StudentResponse();
+                // get student obj
+                // get classroom obj
+                if (student != null)
+                {
+                    Studentclassroom studentclassroom = this.GetStudentClassroom(student);
+                    Classroom classroom = this.GetClassroom(studentclassroom.ClassroomId);
+                        
+                    studentResponse.StudentId = student.Id;
+                    studentResponse.StudentName = student.Name;
+                    studentResponse.StudentIcNumber = student.IcNumber;
+                    studentResponse.ClassroomId = classroom?.Id ?? 0;
+                    studentResponse.ClassroomName = classroom == null ? "" : classroom.Grade + " " + classroom.Name;;
+                    
+                    studentResponses.Add(studentResponse);
+                }
+            }
+
+            return studentResponses;
+        }
+        private List<StudentResponse> GetClassroomAttendance(List<StudentResponse> studentResponses, string? attendanceDate, string? queryType, string? gradeId, int? classroomId)
+        {
+            DateTime selectedDate;
+            if (attendanceDate == null)
+            {
+                selectedDate = DateTime.Today;
+            }
+            else
+            { 
+                selectedDate = DateTime.Parse(attendanceDate);
+
+            }
+            var startDay = selectedDate.Date;
+            var endDay = selectedDate.AddDays(1).AddTicks(-1);
+
+            List<Attendance> selectedDateAttendances =
+                new List<Attendance>(_attendanceRepo.GetAll().Where(x => x.CreatedAt >= startDay && x.CreatedAt <= endDay));
+            var classroomObj = _classroomRepo.GetAll().Where(x => x.Id == classroomId).FirstOrDefault();
+            var classroomsStudents = _studentClassroomRepo.GetAll()
+                .Where(x => x.IsCurrent == true && x.ClassroomId == classroomObj.Id).Select(x => x.StudentId).ToList();
+            var classroomAttendances = selectedDateAttendances.Where(x => classroomsStudents.Contains(x.StudentId)).ToList();
+            TimeSpan lateCutoff = new TimeSpan(7, 31, 0);
+
+            List<Student> studentsList = new List<Student>();
+            if (queryType == "totalOnTimeByClassroom")
+            {
+                var onTime = classroomAttendances.Where(x => x.CreatedAt.Value.TimeOfDay < lateCutoff).Select( x=> x.StudentId).ToList();
+                studentsList = _studentRepo.GetAll().Where(x => onTime.Contains(x.Id)).ToList();
+            }
+            else if (queryType == "totalLateByClassroom")
+            {
+                var late = classroomAttendances.Where(x => x.CreatedAt.Value.TimeOfDay >= lateCutoff).Select( x=> x.StudentId).ToList();;
+                studentsList = _studentRepo.GetAll().Where(x => late.Contains(x.Id)).ToList();
+
             }
 
             foreach (var student in studentsList)
@@ -361,6 +509,23 @@ namespace AttendanceTracker.Models.Implements
                 return "TAHUN " + grade;
             }
         }
+    }
+
+    public class MajorityGrade
+    {
+    }
+
+    public class ClassroomPie
+    {
+        public List<PunctualSeriesComponent> ResultsGraph { get; set; }
+        public string Name { get; set; }
+        public bool NoGraphData { get; set; }
+        
+        public MajorityGrade MajorityGrade { get; set; }
+        
+        public int ClassroomId { get; set; }
+        public string ClassroomName { get; set; }
+
     }
 
     public class DashboardStatistics
